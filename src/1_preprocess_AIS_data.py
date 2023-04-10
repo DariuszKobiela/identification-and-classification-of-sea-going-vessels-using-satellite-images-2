@@ -8,14 +8,18 @@ import os
 import re
 from datetime import datetime, timedelta
 from osgeo import gdal
+from tqdm import tqdm
 
 from constants import PROCESSED_ASF_DATA_PATH, RAW_AIS_CSV_DATA_PATH, \
-    RESULTS_PATH, PROCESSED_AIS_DATA_PATH, INTERPOLATED_AIS_DATA_PATH
+    RESULTS_PATH, PROCESSED_AIS_DATA_PATH, INTERPOLATED_AIS_DATA_PATH, AIS_DF_COLUMNS
 from constants import USE_MEAN_DATETIME, USE_END_DATETIME, USE_START_DATETIME, TIME_WINDOW
 from src.utils import calculate_lin_reg_coefficients, categorise_sign_of_time_difference
 
 # https://stackoverflow.com/questions/66336670/returning-a-copy-versus-a-view-warning-when-using-python-pandas-dataframe
 pd.options.mode.chained_assignment = None  # default='warn', in order not to show warnings
+
+# TODO: error with change of columns name from TranscieverClass to TransceiverClass after 2021-03-30
+# TODO: error if "processed_AIS_data" is empty, even no header
 
 
 def list_asf_files(show_logs=False):
@@ -34,7 +38,7 @@ def calculate_asf_image_features(show_logs=False):
     # Calculate image features
     asf_images_tuples_list = list()
 
-    for asf_file in asf_files_list:
+    for asf_file in tqdm(asf_files_list, desc="Calculating ASF image features"):
         datetime_counter = 0
         asf_file_splitted = asf_file.split('_')
         if show_logs:
@@ -111,7 +115,7 @@ def create_ais_df(show_logs=False):
 
     ais_images_tuples_list = list()
 
-    for ais_file in ais_files_list:
+    for ais_file in tqdm(ais_files_list, desc="Creating AIS dataframes"):
         # print(ais_file)
         ais_file_splitted = ais_file.split('_')
         # print(ais_file_splitted)
@@ -143,13 +147,14 @@ def restrict_data_by_given_conditions(full_data_df, save=True, show_logs=False):
     # newest_results_file = "2023-01-13_00-58-29_full_data_df.csv"
     # full_data_df = pd.read_csv(results_directory + newest_results_file, index_col=0)
     # full_data_df
-    for index, row in full_data_df.iterrows():
+    for index, row in tqdm(full_data_df.iterrows(), total=full_data_df.shape[0], desc="Restricting AIS data by given conditions"):
         # TODO: if AIS file already in '4_processed_AIS_data" folder, then ommit loading and saving again
         if show_logs:
             print(row['ais_file'])
         file_path = RAW_AIS_CSV_DATA_PATH + '/' + str(row['ais_file'])
         ais_full_data = pd.read_csv(file_path)
-        # display(ais_full_data.head(10))
+        ais_full_data.columns = AIS_DF_COLUMNS
+        # print(ais_full_data.head(10))
         # condition for latitude: between 19.193 and 21.1203
         condition1 = (ais_full_data.LAT > row['minLAT']) & (ais_full_data.LAT < row['maxLAT'])
         # condition for latitude: between -157.0894 and -154.4233
@@ -194,7 +199,7 @@ def restrict_data_by_given_conditions(full_data_df, save=True, show_logs=False):
 
 def interpolate_ais_data(full_data_df, save=True, show_logs=False):
     # The way of choosing ships (+/- time)
-    for index, row in full_data_df.iterrows():
+    for index, row in tqdm(full_data_df.iterrows(), total=full_data_df.shape[0], desc="Interpolating AIS data"):
         image_datetime = pd.to_datetime(row['image_datetime'])
         if show_logs:
             print("file: ", index)
@@ -236,7 +241,6 @@ def interpolate_ais_data(full_data_df, save=True, show_logs=False):
 
             if working_df.shape[0] > 1:  # number of rows has to be greater than 1
                 # transform datetime to integer - first 2 rows of sorted dataframe by time_difference
-                # TODO HERE: change the way of choosing chips (+/- time)
                 time1 = working_df['BaseDateTime'][0]
                 time1 = int(time1.strftime("%H%M%S"))
                 LON1 = working_df['LON'][0]
@@ -328,7 +332,7 @@ def interpolate_ais_data(full_data_df, save=True, show_logs=False):
             # print(list_of_df_dicts_after_lin_reg)
 
         # display(list_of_df_dicts_after_lin_reg)
-        df_after_lin_reg = pd.DataFrame.from_dict(list_of_df_dicts_after_lin_reg)
+        df_after_lin_reg = pd.DataFrame.from_dict(list_of_df_dicts_after_lin_reg, columns=list_of_df_dicts_after_lin_reg.keys)
         if save:
             saving_name = 'interpolated_' + row['processed_ais_file']
             df_after_lin_reg.to_csv(INTERPOLATED_AIS_DATA_PATH + '/' + saving_name)

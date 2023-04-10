@@ -28,7 +28,7 @@
 - chosen days should correspond to the chosen dates in the ASF DATA. 
 
 2. AIS data will be downloaded in .zip format. 
-Unpack the data (should be in CSV format) to the folder "2_raw_AIS_csv_data". 
+Unpack the data (should be in CSV format) to the folder "2_raw_AIS_csv_data" using TOTAL COMMANDER program (it is very fast and helpful to unzip multiple files at once). 
 ZIP file should be put in the "0_raw_AIS_zip_data" folder. 
 
 
@@ -36,6 +36,74 @@ ZIP file should be put in the "0_raw_AIS_zip_data" folder.
 1. Use tool: SNAP ->  https://step.esa.int/main/download/snap-download/ (Sentinel Toolboxes, Main download)
 https://step.esa.int/main/toolboxes/snap/
 
+### SNAPPY python
+2. Open SNAP Command Line in Start (Windows). 
+
+	* PYTHON interpreter: C:\Users\user\AppData\Local\Programs\Python\Python36
+
+3. Configuration (only first time): 
+	> cd C:\Program Files\snap\bin
+	> snappy-conf C:\Users\user\anaconda3\envs\snap\python.exe C:\Users\user\anaconda3\envs\snap\Lib\
+	> snappy-conf C:\Python34\python.exe C:\Python34\python.exe\Lib
+
+> Configuring SNAP-Python interface...
+> Done. The SNAP-Python interface is located in 'C:\Users\user\anaconda3\envs\snap_python3_5\Lib\snappy'
+> When using SNAP from Python, either do: sys.path.append('C:\\Users\\user\\anaconda3\\envs\\snap_python3_5\\Lib') 
+> or copy the 'snappy' module into your Python's 'site-packages' directory.
+
+HOW TO CONFIGURE virtualenv with python 3.4 for snappy ESA SNAP:
+https://senbox.atlassian.net/wiki/spaces/SNAP/pages/50855941/Configure+Python+to+use+the+SNAP-Python+snappy+interface
+1. Install python 3.4 from https://www.python.org/downloads/release/python-340/.
+2. Open PowerShell as Admin. Allow scripts execution by command "Set-ExecutionPolicy RemoteSigned". In order to get back to the previous state in the future, type "Set-ExecutionPolicy Restricted". 
+3. Real about virtualenv at https://realpython.com/python-virtual-environments-a-primer/. 
+   - https://docs.python.org/3/library/venv.html
+4. Open PowerShell in standard mode. Go to C:\Python34\virtenv\Scripts>. 
+	> PS C:\Python34\virtenv> Scripts\activate                         
+	> (virtenv) PS C:\Python34\virtenv> python 
+	> Python 3.4.0 (v3.4.0:04f714765c13, Mar 16 2014, 19:25:23) [MSC v.1600 64 bit (AMD64)] on win32 
+	> Type "help", "copyright", "credits" or "license" for more information.       
+	> >>> import GPT                      
+   > Traceback (most recent call last):                
+   > File "<stdin>", line 1, in <module>                  
+   > ImportError: No module named 'GPT'              
+   > >>> from snappy import GPF                   
+   > INFO: org.esa.snap.core.gpf.operators.tooladapter.ToolAdapterIO: Initializing external tool adapters     
+   > INFO: org.esa.s2tbx.dataio.gdal.GDALVersion: GDAL not found on system. Internal GDAL 3.2.1 from distribution will be used. (f0)  
+   > INFO: org.esa.s2tbx.dataio.gdal.GDALVersion: Internal GDAL 3.2.1 set to be used by SNAP. 
+   > Native library load failed.                                                         
+   > java.lang.UnsatisfiedLinkError: C:\Users\user\.snap\auxdata\gdal\gdal-3-2-1\gdalalljni.dll: Can't find dependent libraries  
+   > SEVERE: org.esa.s2tbx.dataio.gdal.GDALLoader: Failed to initialize GDAL native drivers. GDAL readers and writers were disabled.java.lang.reflect.InvocationTargetException             
+   > INFO: org.esa.snap.core.util.EngineVersionCheckActivator: Please check regularly for new updates for the best SNAP experience.     
+          
+5. In order to install extra packages in the virtualenv: 
+   > (virtenv) PS C:\Python34\virtenv> python -m pip3 install numpy 
+
+6. Additional extra command: 
+   - PS C:\Users\user> where.exe 
+   
+7. Learn about making scripts in ESA snappy SNAP python:
+   - https://forum.step.esa.int/t/snappy-gpf-createproduct-object-discrimination-no-output-mask/35729
+   - https://github.com/wajuqi/Sentinel-1-preprocessing-using-Snappy/blob/master/s1_preprocessing.py
+   - https://forum.step.esa.int/t/using-subset-in-snappy-and-snap-why-different-result/34175
+   - https://forum.step.esa.int/t/write-a-georeferenced-tiff-with-snappy/16751
+   - https://forum.step.esa.int/t/exporting-rgb-image-as-geotiff-error/13353/2
+   - https://senbox.atlassian.net/wiki/spaces/SNAP/pages/19300362/How+to+use+the+SNAP+API+from+Python
+   - https://github.com/senbox-org/snap-engine/blob/master/snap-python/src/main/resources/snappy/examples/snappy_write_image.py
+   - https://www.youtube.com/watch?v=PiU68g3WRIY
+   - https://forum.step.esa.int/t/snappy-where-to-start/1463/4
+   - https://www.youtube.com/watch?v=iEEMn7h35nU
+   - https://forum.step.esa.int/t/s1a-product-terrain-correction/27599/10
+
+OTHER USEFUL LINKS: 
+- https://stackoverflow.com/questions/4037939/powershell-says-execution-of-scripts-is-disabled-on-this-system
+- https://www.roelpeters.be/virtualenv-venv-choose-python-version/
+- https://step.esa.int/docs/tutorials/Importing%20data%20into%20SNAP.pdf
+- https://realpython.com/python-virtual-environments-a-primer/#the-virtualenv-project
+- http://step.esa.int/main/doc/tutorials/
+- https://rus-copernicus.eu/portal/wp-content/uploads/library/education/training/PY01_Sentinel1Processing_snappy.pdf
+
+
+### Manual options
 2. Load ZIP file of the chosen area (drag-and-drop). 
 Click on the loaded file/Bands/Amplitude_VH and wait till the image load. 
 
@@ -69,7 +137,17 @@ Subset exists in the program memory.
 
 You can click on the subset file/Bands/Amplitude_VH and wait till the image load to see the results. 
 
-5. Choose subset. On the panel choose:
+5. MASK for harbour and terrain
+W SNAPie:
+Ładujesz zdjęcie na etapie przetwarzania
+Raster / Mask / "Land/Sea Mask"
+Kanały Intensity_VV i Intensity_VH (oba)
+Opcja Extent shoreline: daj nawet 30 pikseli (metrów)
+EDIT: TRZEBA BRAĆ po 40 m (inaczej nie zakrywa całości nabrzeża)
+Zaznacz "Mask out the Land"
+Zapisujemy w natywnym formacie SNAPa
+
+6. Choose subset. On the panel choose:
 - Radar/Geometric/Terrain correction/Range-Doppler Terrain correction. 
 
 The window comes. In the second tab "Processing parameters" choose:
@@ -82,7 +160,7 @@ The window comes. In the second tab "Processing parameters" choose:
 - CHANGE SAVING DIRECTORY to "3_processed_ASF_data". 
 Run. Wait a few minutes (pictures has big sizes - even 900 MB). 
 
-6. Check if the processed picture is in the folder "3_processed_ASF_data" in the TIF format. 
+7. Check if the processed picture is in the folder "5_processed_ASF_data" in the TIF format. 
 
 ## AIS Data preprocessing
 1. Run python/jupyter script: "1_AIS_data_preprocessing.py". 
@@ -147,5 +225,3 @@ Make sure that "X_field" is "LON" and "Y_field" is "LAT".
 6. https://paperswithcode.com/dataset/coco
 7. https://voxel51.com/docs/fiftyone/user_guide/dataset_zoo/index.html
 8. https://paperswithcode.com/paper/microsoft-coco-common-objects-in-context
-
-

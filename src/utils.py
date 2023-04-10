@@ -1,7 +1,22 @@
 import pandas as pd
 import os
+import glob
 
 from src.constants import RESULTS_PATH, CUTTED_AND_ANNOTATED_ASF_DATA_PATH, STOPFILES, TEST_RATIO, VALIDATION_RATIO
+
+
+# https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
+# ANSI escape sequences. Python code from the Blender build scripts:
+class BColors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 def calculate_lin_reg_coefficients(x1, y1, x2, y2):
@@ -61,6 +76,7 @@ def create_train_test_file_splits():
             pictures.append(file)
 
     print(pictures)
+    print()
     total_number_of_pictures = len(pictures)
     print(f"total number_of_folder_pictures: {total_number_of_pictures}")
     print()
@@ -68,17 +84,36 @@ def create_train_test_file_splits():
     print(f"number_of_test_folder_pictures: {nr_test_pictures}")
     nr_train_pictures = total_number_of_pictures - nr_test_pictures
     print(f"number_of_train_folder_pictures: {nr_train_pictures}")
-    print()
     nr_val_pictures = round(VALIDATION_RATIO*nr_train_pictures)
-    print(f"nr_val_folder_pictures: {nr_val_pictures}")
+    print(f"number_of_val_folder_pictures: {nr_val_pictures}")
+    print()
 
     test_folders = pictures[0:nr_test_pictures]
     print(f"test_folders: {test_folders}")
-    print()
     train_folders = pictures[nr_test_pictures:]
     print(f"train_folders: {train_folders}")
-    print()
     val_folders = pictures[nr_test_pictures:nr_test_pictures+nr_val_pictures]
     print(f"val_folders: {val_folders}")
+    print()
 
-    return train_folders, val_folders, test_folders
+    return train_folders, val_folders, test_folders, total_number_of_pictures, nr_train_pictures, nr_val_pictures, nr_test_pictures
+
+
+def delete_contents_of_the_given_folders(path, recursive=True, pattern='all'):
+    # https://pynative.com/python-delete-files-and-directories/
+    # recursive=True if also delete the content of the subdirectories
+
+    given_path = path  # FINAL_DATA_PATH
+    pattern = given_path + "**/*.*"  # in order to delete all file types - *
+
+    if pattern == 'txt':
+        pattern = given_path + "**/*.txt"  # in order to delete only txt files
+        recursive = False
+
+    files = glob.glob(pattern, recursive=recursive)  # recursive=True if also delete the content of the subdirectories
+
+    for f in files:
+        try:
+            os.remove(f)
+        except OSError as e:
+            print("Error: %s : %s" % (f, e.strerror))

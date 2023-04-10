@@ -3,6 +3,7 @@ import math
 import os
 import numpy as np
 from skimage import exposure
+from tqdm import tqdm
 
 from src.constants import CUTTED_AND_ANNOTATED_ASF_DATA_PATH, PROCESSED_ASF_DATA_PATH
 from src.utils import get_full_data_df
@@ -12,7 +13,7 @@ from src.constants import CHOSEN_PICTURE_SIZE
 def slice_ASF_pictures(full_data_df, show_logs=False):
     # Slice picture into pieces
     # https://stackoverflow.com/questions/50207292/how-to-convert-geotiff-to-jpg-in-python-or-java
-    for index, row in full_data_df.iterrows():
+    for index, row in tqdm(full_data_df.iterrows(), total=full_data_df.shape[0], desc="Slicing ASF pictures"):
         file_name = row['asf_file']
         file_name_no_extension = file_name.strip('.tif')
         if show_logs:
@@ -47,7 +48,7 @@ def slice_ASF_pictures(full_data_df, show_logs=False):
                 print("mean before", np.mean(data[k, :, :]))
             # data[k,:,:] = exposure.equalize_hist(data[k,:,:])
             data[k, :, :] = exposure.rescale_intensity(data[k, :, :],
-                                                       (np.percentile(data[k, :, :], 2), np.percentile(data[k, :, :], 98)))
+                                                       (np.percentile(data[k, :, :], 2), np.percentile(data[k, :, :], 98)))#.astype(np.uint8)
             # data[k,:,:] = data[k,:,:]*255
             if show_logs:
                 print("mean after", np.mean(data[k, :, :]))
@@ -147,4 +148,4 @@ def slice_ASF_pictures(full_data_df, show_logs=False):
 
 
 full_data_df = get_full_data_df(newest=True, show_logs=False)
-slice_ASF_pictures(full_data_df, show_logs=True)
+slice_ASF_pictures(full_data_df, show_logs=False)

@@ -1,18 +1,42 @@
+from datetime import datetime
+
 import pandas as pd
 from osgeo import gdal
 import os
 from PIL import Image  # PIL library supports only TIF format but not newer TIFF
 from tqdm import tqdm
+import math
 
 from src.constants import INTERPOLATED_AIS_DATA_PATH, CUTTED_AND_ANNOTATED_ASF_DATA_PATH, FILES_FORMAT_TO_PROCESS, \
-    SHIP_WIDTH_PX, SHIP_HEIGHT_PX, OBJECT_CLASS
-from src.utils import get_full_data_df, calculate_px_from_lon2, calculate_px_from_lat2
+    SHIP_WIDTH_PX, SHIP_HEIGHT_PX, OBJECT_CLASS, LOGS_PATH, MAIN_PICTURES_AREAS_PATH
+from src.utils import get_full_data_df, calculate_px_from_lon2, calculate_px_from_lat2, BColors
+
+
+# TODO: calculate separately number of ships after (0,0,0 black pixel color) and (length <30m)
+
+# def create_auxiliary_data_df(asf_df, ais_df, save=True, show_logs=False):
+#     full_data_df = asf_df.merge(ais_df, on='date')
+#     if show_logs:
+#         print(full_data_df)
+#     if save:
+#         # save your work
+#         current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+#         # print(current_datetime)
+#         full_data_df.to_csv(RESULTS_PATH + current_datetime + '_full_data_df.csv')
+#
+#     return full_data_df
+
+def create_auxiliary_data_df(path, df, asf_file_name, picture_name, area_number):
+    # current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    # df.to_csv(LOGS_PATH + current_datetime + '_target_area.csv')
+    df.to_csv(path + asf_file_name + '_' + picture_name + '_' + str(area_number) + '.csv')
 
 
 def tag_ASF_pictures(full_data_df, show_logs=False, show_essential_logs=True, tag_main_picture=False):
     TAG_MAIN_PICTURE = tag_main_picture  # takes a lot of time - tag False in order not to tag big picture
 
-    for index, row in full_data_df.iterrows():
+    # with tqdm(total = full_data_df.shape[0] * pictures) as pbar:
+    for index, row in tqdm(full_data_df.iterrows(), total=full_data_df.shape[0], desc="Tagging ASF pictures"):
         asf_file_name = row['asf_file'].strip(".tif")
         ais_file_name = 'interpolated_processed_' + row['ais_file']
         ais_file_df = pd.read_csv(INTERPOLATED_AIS_DATA_PATH + ais_file_name, index_col=0)
@@ -29,15 +53,26 @@ def tag_ASF_pictures(full_data_df, show_logs=False, show_essential_logs=True, ta
             for file in os.listdir(directory):
                 if file.endswith(FILES_FORMAT_TO_PROCESS):
                     pictures.append(file)
-            if TAG_MAIN_PICTURE == False:
+
+            message = BColors.WARNING + "\tPROCESSING MAIN PICTURE MAY TAKE A WHILE..." + BColors.ENDC
+            if not TAG_MAIN_PICTURE:
                 pictures.remove('original_picture.png')
+                message = ''
                 # print(pictures)
             if show_logs:
                 print(pictures)
 
             global_ships_counter = 0
             global_ships_after_reduction_counter = 0
-            for picture in tqdm(pictures):
+            number_of_pictures = len(pictures)
+            for area_number, picture in enumerate(pictures): # tqdm(pictures, total=len(pictures), desc="Files processing")
+                # processed_files_percentage = round((area_number / number_of_pictures) * 100)
+                # print(BColors.WARNING + "\tFILES PROCESSING STATUS: " + str(processed_files_percentage) + "% (" + str(
+                #     area_number) + "/" + str(number_of_pictures) + ")" + BColors.ENDC)
+                if area_number == 0:
+                    print(message)
+                print()
+                # pbar.update(1)
                 picture_name = picture.strip(FILES_FORMAT_TO_PROCESS)
                 if show_logs:
                     print(f'picture: {picture}')
@@ -87,11 +122,18 @@ def tag_ASF_pictures(full_data_df, show_logs=False, show_essential_logs=True, ta
 
                     if show_logs:
                         print(target_area.head())
+                        # print(target_area.columns())
                         print(f"Number of ships founded (including black areas = 0 pixel value): {len(target_area)}")
 
                     current_file = directory + '/' + picture_name + '.txt'
                     if os.path.exists(current_file):
                         os.remove(current_file)  # remove old files
+
+                    # TODO after adding coordinates
+                    if TAG_MAIN_PICTURE and (area_number == 0):
+                        create_auxiliary_data_df(MAIN_PICTURES_AREAS_PATH, target_area, asf_file_name, picture_name, area_number)
+                    elif area_number % 50 == 0:
+                        create_auxiliary_data_df(LOGS_PATH, target_area, asf_file_name, picture_name, area_number)
 
                     ships_counter = 0
                     for index, row in target_area.iterrows():
@@ -102,17 +144,52 @@ def tag_ASF_pictures(full_data_df, show_logs=False, show_essential_logs=True, ta
                             print(f"Image size: {im.size}")  # Get the width and hight of the image for iterating over
                         try:
                             pixels = pix[row['LONpx_X2'], row['LATpx_Y2']]
-                            #print(f"Image pixels values: {pixels}")
+                            # print(f"Image pixels values: {pixels}")
                             # print(pixels[0], pixels[1], pixels[2])
+
+                            # if it is dark filling at the edges of the image
                             if pixels[0] == 0 and pixels[1] == 0 and pixels[2] == 0:
                                 # DO NOT TAG THE DATA THEN - it is black area
                                 if show_logs:
                                     print("0 pixels values - not tagging")
                                 continue
+                            elif row['Length'] < 3:
+                                # # if the ship length is smaller than 20 meters
+                                # 12 meters is 1 pixel
+                                # DO NOT TAG THE SHIP THEN - it is too small to be seen on the image
+                                if show_logs:
+                                    print("Ship length is < 3 meters - not tagging")
+                                continue
+
                             ships_counter += 1
                         except:
                             print("IndexError: image index out of range")
                             continue
+
+                        # CHECK IF VALUE IS NAN (EMPTY) - IF SO, DO NOT TAG
+                        if math.isnan(row['Length']):
+                            continue
+
+                        object_class = 0
+                        # # CLASSES CUTS = [110m, 265m]
+                        # if row['Length'] < 111:
+                        #     object_class = 0  # small ship
+                        # elif row['Length'] < 266:
+                        #     object_class = 1  # medium ship
+                        # else:
+                        #     object_class = 2  # big ship
+
+                        # # CLASSES CUTS = [12m, 17m, 26m, 230m]
+                        # if row['Length'] < 12:
+                        #     object_class = 0
+                        # elif row['Length'] < 18:
+                        #     object_class = 1
+                        # elif row['Length'] < 27:
+                        #     object_class = 2
+                        # elif row['Length'] < 231:
+                        #     object_class = 3
+                        # else:
+                        #     object_class = 4
 
                         file_object = open(current_file, 'a')
                         # OBJECT_CLASS, SHIP_WIDTH_PX, SHIP_HEIGHT_PX
@@ -130,7 +207,7 @@ def tag_ASF_pictures(full_data_df, show_logs=False, show_essential_logs=True, ta
                         SHIP_WIDTH_normalized = SHIP_WIDTH_PX / image_width
                         SHIP_HEIGHT_normalized = SHIP_HEIGHT_PX / image_height
                         # print(OBJECT_CLASS, X_CENTER_AXIS_VALUE, Y_CENTER_AXIS_VALUE, SHIP_WIDTH_normalized, SHIP_HEIGHT_normalized)
-                        string_to_write = f"{OBJECT_CLASS} {X_CENTER_AXIS_VALUE} {Y_CENTER_AXIS_VALUE} {SHIP_WIDTH_normalized} {SHIP_HEIGHT_normalized}\n"
+                        string_to_write = f"{object_class} {X_CENTER_AXIS_VALUE} {Y_CENTER_AXIS_VALUE} {SHIP_WIDTH_normalized} {SHIP_HEIGHT_normalized}\n"
                         file_object.write(string_to_write)
                         # Close the file
                         file_object.close()
@@ -156,7 +233,7 @@ def tag_ASF_pictures(full_data_df, show_logs=False, show_essential_logs=True, ta
 
         if TAG_MAIN_PICTURE and show_essential_logs:
             print(f"Number of ships founded (including black areas = 0 pixel value): {global_ships_counter}")
-            print(f"Number of ships founded after excluding black areas == 0 pixel value: {global_ships_after_reduction_counter}")
+            print(f"Number of ships founded after excluding (black areas == 0 pixel value) and (ship length < 30 m): {global_ships_after_reduction_counter}")
 
 
 full_data_df = get_full_data_df(newest=True, show_logs=False)
